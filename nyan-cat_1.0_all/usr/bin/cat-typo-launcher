@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# koda waz hre
+SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+
+misspell_word() {
+  local word="$1"
+  local len idx action
+
+  word="${word//l/w}"
+  word="${word//L/W}"
+
+  len=${#word}
+  if (( len < 3 )); then
+    printf '%s' "$word"
+    return 0
+  fi
+
+  if (( RANDOM % 100 >= 35 )); then
+    printf '%s' "$word"
+    return 0
+  fi
+
+  action=$(( RANDOM % 3 ))
+  case "$action" in
+    0)
+      idx=$(( RANDOM % len ))
+      printf '%s%s%s' "${word:0:idx}" "${word:idx:1}${word:idx:1}" "${word:idx+1}"
+      ;;
+    1)
+      idx=$(( 1 + RANDOM % (len - 2) ))
+      printf '%s%s' "${word:0:idx}" "${word:idx+1}"
+      ;;
+    2)
+      idx=$(( RANDOM % (len - 1) ))
+      printf '%s%s%s%s' "${word:0:idx}" "${word:idx+1:1}" "${word:idx:1}" "${word:idx+2}"
+      ;;
+  esac
+}
+
+if [[ $# -gt 0 ]]; then
+  printf '%s\n' "Uh ohs! You misspelled cat! Hehe :3"
+  out=()
+  for word in "$@"; do
+    out+=("$(misspell_word "$word")")
+  done
+  printf '%s\n' "${out[*]}"
+else
+  printf '%s\n' "Uh ohs! You misspelled cat! Hehe :3"
+fi
+
+if [[ -x /usr/bin/nyan ]]; then
+  exec /usr/bin/nyan
+fi
+
+exec "$SCRIPT_DIR/nyan"
