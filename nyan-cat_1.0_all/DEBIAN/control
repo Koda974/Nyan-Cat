@@ -1,8 +1,0 @@
-Package: nyan-cat
-Version: 1.0
-Section: games
-Priority: optional
-Architecture: all
-Maintainer: Koda
-Depends: bash, chafa
-Description: A geeky reference to Nyan Cat that plays in your terminal! :3
