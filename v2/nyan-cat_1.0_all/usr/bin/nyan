@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Made by Koda :3
+SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
+SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
+ASSET_DIR="/usr/share/nyan-cat"
+
+if [[ ! -d "$ASSET_DIR" ]] && [[ -d "$SCRIPT_DIR/../share/nyan-cat" ]]; then
+  ASSET_DIR="$(cd -- "$SCRIPT_DIR/../share/nyan-cat" && pwd)"
+fi
+
+GIF_PATH="$ASSET_DIR/Nyan!.gif"
+AUDIO_PATH="$ASSET_DIR/Catto.mp3"
+
+HIDE_CURSOR=$'\033[?25l'
+SHOW_CURSOR=$'\033[?25h'
+RESET=$'\033[0m'
+CLEAR=$'\033[2J\033[H'
+
+audio_pid=""
+TYPO_MESSAGE="Uh ohs! You misspelled cat! Hehe :3"
+
+usage() {
+  cat <<'EOF'
+Usage: nyan [--no-audio] [--ascii] [chafa options...]
+
+Options:
+  --no-audio  Disable background audio.
+  --ascii     Force the built-in ASCII fallback instead of chafa.
+  -h, --help  Show this help text.
+EOF
+}
+
+find_player() {
+  local player
+  for player in ffplay mpv mpg123 paplay aplay; do
+    if command -v "$player" >/dev/null 2>&1; then
+      printf '%s\n' "$player"
+      return 0
+    fi
+  done
+  return 1
+}
+
+start_audio() {
+  local player
+  [[ -f "$AUDIO_PATH" ]] || return 0
+  player="$(find_player || true)"
+  [[ -n "$player" ]] || return 0
+
+  case "$player" in
+    ffplay)
+      ffplay -nodisp -autoexit -loglevel error -loop 0 "$AUDIO_PATH" >/dev/null 2>&1 &
+      ;;
+    mpv)
+      mpv --no-video --really-quiet --loop-file=inf "$AUDIO_PATH" >/dev/null 2>&1 &
+      ;;
+    mpg123)
+      mpg123 -q --loop -1 "$AUDIO_PATH" >/dev/null 2>&1 &
+      ;;
+    paplay)
+      bash -c 'while true; do paplay "$1" >/dev/null 2>&1 || exit 1; done' _ "$AUDIO_PATH" &
+      ;;
+    aplay)
+      bash -c 'while true; do aplay "$1" >/dev/null 2>&1 || exit 1; done' _ "$AUDIO_PATH" &
+      ;;
+  esac
+
+  audio_pid="$!"
+}
+
+stop_audio() {
+  if [[ -n "$audio_pid" ]] && kill -0 "$audio_pid" >/dev/null 2>&1; then
+    kill "$audio_pid" >/dev/null 2>&1 || true
+    wait "$audio_pid" 2>/dev/null || true
+  fi
+}
+
+cleanup() {
+  stop_audio
+  printf '%s%s' "$SHOW_CURSOR" "$RESET"
+}
+
+rainbow_line() {
+  local offset="$1"
+  local width="$2"
+  local -a colors=(196 208 226 46 27 201)
+  local out=""
+  local i idx
+
+  for ((i = 0; i < width; i++)); do
+    idx=$(( (i + offset) % ${#colors[@]} ))
+    out+="\033[48;5;${colors[idx]}m "
+  done
+
+  printf '%b%s' "$out" "$RESET"
+}
+
+render_ascii_frame() {
+  local frame="$1"
+  local cols rows trail pad i
+  read -r cols rows < <(stty size 2>/dev/null | awk '{print $2, $1}')
+  cols="${cols:-80}"
+  rows="${rows:-24}"
+  trail=$(( cols - 32 ))
+  if (( trail < 12 )); then
+    trail=12
+  fi
+
+  pad=$(( (rows - 8) / 2 + (frame % 2) ))
+  if (( pad < 0 )); then
+    pad=0
+  fi
+
+  printf '%s' "$CLEAR"
+  for ((i = 0; i < pad; i++)); do
+    printf '\n'
+  done
+
+  printf '%s  \033[48;5;217m,------------,\033[0m    /\_/\ \n' "$(rainbow_line "$frame" "$trail")"
+  printf '%s  \033[48;5;224m|::NYAN CAT::|\033[0m   ( o.o )\n' "$(rainbow_line $((frame + 1)) "$trail")"
+  printf '%s  \033[48;5;217m|::::::::::::|\033[0m   > ^ < \n' "$(rainbow_line $((frame + 2)) "$trail")"
+  printf "%s  \033[48;5;224m'----------------'\033[0m        \n" "$(rainbow_line $((frame + 3)) "$trail")"
+  printf '\nterminal nyan engaged\n'
+}
+
+run_ascii() {
+  local frame=0
+  trap cleanup EXIT INT TERM
+  printf '%s' "$HIDE_CURSOR"
+  while true; do
+    render_ascii_frame "$frame"
+    sleep 0.12
+    frame=$((frame + 1))
+  done
+}
+
+run_chafa() {
+  local cols rows
+  read -r rows cols < <(stty size 2>/dev/null || printf '24 80\n')
+  trap cleanup EXIT INT TERM
+  printf '%s' "$HIDE_CURSOR"
+  # koda waz hre
+  chafa \
+    --format symbols \
+    --symbols block+border+space \
+    --animate on \
+    --clear \
+    --align mid,mid \
+    --colors full \
+    --size "${cols}x${rows}" \
+    --stretch \
+    --margin-bottom 0 \
+    "$@" \
+    "$GIF_PATH"
+}
+
+main() {
+  local invoked_as
+  local use_audio=1
+  local force_ascii=0
+  local -a extra_args=()
+  invoked_as="$(basename -- "$0")"
+
+  if [[ "$invoked_as" != "nyan" ]]; then
+    printf '%s\n' "$TYPO_MESSAGE"
+  fi
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --no-audio)
+        use_audio=0
+        shift
+        ;;
+      --ascii)
+        force_ascii=1
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        extra_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if (( use_audio )); then
+    start_audio
+  fi
+
+  if (( use_audio )) && [[ -n "$audio_pid" ]]; then
+    sleep 3.75
+  fi
+
+  if (( force_ascii )) || ! command -v chafa >/dev/null 2>&1; then
+    run_ascii
+  fi
+
+  run_chafa "${extra_args[@]}"
+}
+
+main "$@"

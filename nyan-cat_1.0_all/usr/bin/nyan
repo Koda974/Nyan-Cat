@@ -52,19 +52,19 @@ start_audio() {
 
   case "$player" in
     ffplay)
-      ffplay -nodisp -autoexit -loglevel error "$AUDIO_PATH" >/dev/null 2>&1 &
+      ffplay -nodisp -autoexit -loglevel error -loop 0 "$AUDIO_PATH" >/dev/null 2>&1 &
       ;;
     mpv)
-      mpv --no-video --really-quiet "$AUDIO_PATH" >/dev/null 2>&1 &
+      mpv --no-video --really-quiet --loop-file=inf "$AUDIO_PATH" >/dev/null 2>&1 &
       ;;
     mpg123)
-      mpg123 -q "$AUDIO_PATH" >/dev/null 2>&1 &
+      mpg123 -q --loop -1 "$AUDIO_PATH" >/dev/null 2>&1 &
       ;;
     paplay)
-      paplay "$AUDIO_PATH" >/dev/null 2>&1 &
+      bash -c 'while true; do paplay "$1" >/dev/null 2>&1 || exit 1; done' _ "$AUDIO_PATH" &
       ;;
     aplay)
-      aplay "$AUDIO_PATH" >/dev/null 2>&1 &
+      bash -c 'while true; do aplay "$1" >/dev/null 2>&1 || exit 1; done' _ "$AUDIO_PATH" &
       ;;
   esac
 
